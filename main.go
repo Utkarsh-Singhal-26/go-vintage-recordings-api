@@ -59,7 +59,9 @@ func main() {
 	router.GET("/albums", func(c *gin.Context) {
 		getAlbums(c, db)
 	})
-	router.GET("/albums/:id", getAlbumByID)
+	router.GET("/albums/:id", func(c * gin.Context) {
+		getAlbumByID(c, db)
+	})
 	router.POST("/albums", postAlbums)
 
 	router.Run("localhost:8000")
@@ -92,16 +94,21 @@ func getAlbums(c *gin.Context, db *sql.DB) {
 	c.IndentedJSON(http.StatusOK, albums)
 }
 
-func getAlbumByID(c *gin.Context) {
+func getAlbumByID(c *gin.Context, db *sql.DB) {
 	id := c.Param("id")
+	var album Album
 
-	for _, a := range albums {
-		if a.ID == id {
-			c.IndentedJSON(http.StatusOK, a)
+	row := db.QueryRow("SELECT * FROM album WHERE id = ?", id)
+	if err := row.Scan(&album.ID, &album.Title, &album.Artist, &album.Price); err != nil {
+		if err == sql.ErrNoRows {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"message": "album not found"})
 			return
 		}
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "album not found"})
+	
+	c.IndentedJSON(http.StatusOK, album)
 }
 
 func postAlbums(c *gin.Context) {
