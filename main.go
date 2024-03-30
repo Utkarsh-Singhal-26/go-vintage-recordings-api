@@ -18,19 +18,6 @@ type Album struct {
 	Price  float64 `json:"price"`
 }
 
-type album struct {
-	ID     string  `json:"id"`
-	Title  string  `json:"title"`
-	Artist string  `json:"artist"`
-	Price  float64 `json:"price"`
-}
-
-var albums = []album{
-	{ID: "1", Title: "Blue Train", Artist: "John Coltrane", Price: 56.99},
-	{ID: "2", Title: "Jeru", Artist: "Gerry Mulligan", Price: 17.99},
-	{ID: "3", Title: "Sarah Vaughan and Clifford Brown", Artist: "Sarah Vaughan", Price: 39.99},
-}
-
 func main() {
 	cfg := mysql.Config{
 		User:	os.Getenv("DBUSER"),
@@ -62,7 +49,13 @@ func main() {
 	router.GET("/albums/:id", func(c * gin.Context) {
 		getAlbumByID(c, db)
 	})
-	router.POST("/albums", postAlbums)
+	router.POST("/albums", func(c *gin.Context) {
+		postAlbums(c, db, Album{
+			Title: "The Modern Sound of Betty Carter",
+			Artist: "Betty Carter",
+			Price: 49.99,
+		})
+	})
 
 	router.Run("localhost:8000")
 }
@@ -111,13 +104,18 @@ func getAlbumByID(c *gin.Context, db *sql.DB) {
 	c.IndentedJSON(http.StatusOK, album)
 }
 
-func postAlbums(c *gin.Context) {
-	var newAlbum album
-
-	if err := c.BindJSON(&newAlbum); err != nil {
+func postAlbums(c *gin.Context, db *sql.DB, newAlbum Album) {
+	result, err := db.Exec("INSERT INTO album (title, artist, price) VALUES (?, ?, ?)", newAlbum.Title, newAlbum.Artist, newAlbum.Price)
+	if err != nil {
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	albums = append(albums, newAlbum)
-	c.IndentedJSON(http.StatusCreated, newAlbum)
+	id, err := result.LastInsertId()
+	if err != nil {
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	
+	c.IndentedJSON(http.StatusCreated, id)
 }
